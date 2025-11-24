@@ -1,0 +1,7 @@
+{
+  "name": "The Vault",
+  "description": "A premium, gamified personal finance application with AI insights and interactive visualizations.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
