@@ -9,109 +9,95 @@ interface ThreeSceneProps {
   focusMode: boolean;
 }
 
-const ElegantMorphingAvatar: React.FC<{ aiState: AIState; focusMode: boolean }> = ({ aiState, focusMode }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const geometryRef = useRef<THREE.IcosahedronGeometry>(null);
+const CyberCoinAvatar: React.FC<{ aiState: AIState; focusMode: boolean }> = ({ aiState, focusMode }) => {
+  const meshRef = useRef<THREE.Group>(null);
   
-  // Warm, Elegant Color Palette
   const color = useMemo(() => {
     switch (aiState) {
-      case 'listening': return new THREE.Color('#db2777'); // Pink-600
-      case 'thinking': return new THREE.Color('#9333ea'); // Purple-600
-      case 'speaking': return new THREE.Color('#f59e0b'); // Amber-500
-      default: return new THREE.Color('#be185d'); // Pink-700 (Idle)
+      case 'listening': return new THREE.Color('#ef4444');
+      case 'thinking': return new THREE.Color('#06b6d4');
+      case 'speaking': return new THREE.Color('#10b981');
+      default: return new THREE.Color('#8b5cf6');
     }
   }, [aiState]);
 
-  // Initial random noise for vertex displacement
-  const noise = useMemo(() => {
-    return new Float32Array(200).map(() => Math.random());
-  }, []);
-
   useFrame((state) => {
-    if (meshRef.current && geometryRef.current) {
+    if (meshRef.current) {
       const time = state.clock.getElapsedTime();
       
-      // Gentle floating
-      const targetZ = focusMode ? 3.5 : 0;
-      meshRef.current.position.z = THREE.MathUtils.lerp(meshRef.current.position.z, targetZ, 0.05);
-      
-      // Animation Parameters based on State
-      let speed = 0.5;
-      let amplitude = 0.1;
-      
+      // Base Animation
+      let rotSpeed = 0.5;
+      let bobAmount = 0.1;
+      let bobSpeed = 2;
+
       if (aiState === 'speaking') {
-          speed = 2.5;
-          amplitude = 0.3;
+          rotSpeed = 3;
+          bobAmount = 0.2;
+          bobSpeed = 8;
       } else if (aiState === 'thinking') {
-          speed = 3.0;
-          amplitude = 0.15;
-      } else if (aiState === 'listening') {
-          speed = 1.0;
-          amplitude = 0.2;
+          rotSpeed = 5;
+          bobAmount = 0.05;
       }
 
-      // Smooth Rotation
-      meshRef.current.rotation.y += 0.002 * speed;
-      meshRef.current.rotation.z += 0.001 * speed;
-
-      // Color Transition
-      if(meshRef.current.material instanceof THREE.MeshStandardMaterial) {
-         meshRef.current.material.color.lerp(color, 0.05);
-         meshRef.current.material.emissive.lerp(color, 0.05);
-      }
+      meshRef.current.rotation.y += 0.02 * rotSpeed;
+      meshRef.current.position.y = Math.sin(time * bobSpeed) * bobAmount;
       
-      // Scale Pulse (Subtle breathing)
-      const scale = 1 + Math.sin(time * speed) * (amplitude * 0.5);
-      meshRef.current.scale.setScalar(scale);
+      const targetZ = focusMode ? 4 : 0;
+      meshRef.current.position.z = THREE.MathUtils.lerp(meshRef.current.position.z, targetZ, 0.1);
+
+      // Pulse color
+      meshRef.current.children.forEach((child: any) => {
+          if(child.material) {
+              child.material.emissive.lerp(color, 0.1);
+              child.material.color.lerp(color, 0.1);
+          }
+      });
     }
   });
 
   return (
-    <mesh ref={meshRef}>
-      <icosahedronGeometry ref={geometryRef} args={[1.2, 4]} />{/* High poly for smooth look */}
-      <meshStandardMaterial 
-        color={color} 
-        emissive={color}
-        emissiveIntensity={0.6}
-        roughness={0.1} 
-        metalness={0.2}
-        wireframe={true} // Elegant wireframe overlay
-        transparent
-        opacity={0.8}
-      />
-      {/* Inner Glow Core */}
-      <mesh scale={[0.8, 0.8, 0.8]}>
-        <sphereGeometry args={[1, 32, 32]} />
-        <meshBasicMaterial color="#fbbf24" transparent opacity={0.3} />
+    <group ref={meshRef}>
+      {/* Outer Ring */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.8, 0.1, 16, 32]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} roughness={0.2} metalness={0.8} />
       </mesh>
-    </mesh>
+      {/* Inner Core */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.6, 0.6, 0.1, 32]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.2} roughness={0.3} metalness={0.9} />
+      </mesh>
+      {/* Symbol (Simulated by boxes) */}
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[0.2, 0.8, 0.2]} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={1} />
+      </mesh>
+    </group>
   );
 };
 
-const WarmParticles: React.FC<{ aiState: AIState }> = ({ aiState }) => {
+const BackgroundParticles: React.FC<{ aiState: AIState; focusMode: boolean }> = ({ aiState, focusMode }) => {
   const pointsRef = useRef<THREE.Points>(null);
   
   const particles = useMemo(() => {
-    const count = 800;
+    const count = 1500;
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      const r = 10 + Math.random() * 20;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      
-      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      positions[i * 3 + 2] = r * Math.cos(phi);
+      positions[i * 3] = (Math.random() - 0.5) * 40;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 40;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 40;
     }
     return positions;
   }, []);
 
   useFrame(() => {
     if (pointsRef.current) {
-      let speed = 0.0005;
-      if (aiState !== 'idle') speed = 0.002;
+      let speed = 0.001;
+      if (aiState === 'speaking') speed = 0.005;
+      if (aiState === 'thinking') speed = 0.01;
+      
       pointsRef.current.rotation.y += speed;
+      pointsRef.current.rotation.x += speed * 0.5;
     }
   });
 
@@ -120,7 +106,7 @@ const WarmParticles: React.FC<{ aiState: AIState }> = ({ aiState }) => {
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={particles.length / 3} array={particles} itemSize={3} />
       </bufferGeometry>
-      <pointsMaterial size={0.1} color="#fcd34d" sizeAttenuation transparent opacity={0.4} />
+      <pointsMaterial size={0.08} color="#ffffff" sizeAttenuation transparent opacity={focusMode ? 0.3 : 0.6} />
     </points>
   );
 };
@@ -128,12 +114,12 @@ const WarmParticles: React.FC<{ aiState: AIState }> = ({ aiState }) => {
 export const ThreeScene: React.FC<ThreeSceneProps> = ({ aiState, focusMode }) => {
   return (
     <div id="canvas-container" className="transition-opacity duration-1000">
-      <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ antialias: true, alpha: true }}>
-        <ambientLight intensity={0.4} />
-        <pointLight position={[10, 10, 10]} intensity={1} color="#f472b6" />
-        <pointLight position={[-10, -10, -10]} intensity={0.5} color="#fbbf24" />
-        <ElegantMorphingAvatar aiState={aiState} focusMode={focusMode} />
-        <WarmParticles aiState={aiState} />
+      <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ antialias: true }}>
+        <ambientLight intensity={0.5} />
+        <pointLight position={[10, 10, 10]} intensity={1} />
+        <pointLight position={[-10, -10, -10]} intensity={0.5} color="#4c1d95" />
+        <CyberCoinAvatar aiState={aiState} focusMode={focusMode} />
+        <BackgroundParticles aiState={aiState} focusMode={focusMode} />
       </Canvas>
     </div>
   );

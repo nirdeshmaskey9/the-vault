@@ -13,9 +13,6 @@ export interface UserProfile {
   currency: string;
   financialGoal: string;
   riskTolerance: 'low' | 'medium' | 'high';
-  occupation?: string;
-  monthlyIncome?: number;
-  voiceName?: string; // Persistent voice setting
 }
 
 export interface Account {
@@ -42,9 +39,6 @@ export interface Expense {
   notes: string;
   createdAt: string;
   metaOrigin: 'manual' | 'recurring' | 'ai_generated' | 'receipt_scan' | 'transfer';
-  isRecurring?: boolean;
-  frequency?: 'monthly' | 'weekly' | 'yearly';
-  nextDueDate?: string;
   receiptImage?: string; // base64
 }
 
@@ -55,9 +49,6 @@ export interface Income {
   source: string;
   accountId: number;
   notes: string;
-  isRecurring?: boolean;
-  frequency?: 'monthly' | 'weekly' | 'yearly';
-  nextDueDate?: string;
 }
 
 export interface Debt {
@@ -112,9 +103,9 @@ export interface ChatMessage {
 
 export interface AIMemory {
   userId: string;
-  facts: string[];
-  summary: string;
-  conversationHistory: ChatMessage[];
+  facts: string[]; // Explicit facts (e.g., "User wants to buy a house in 2025")
+  summary: string; // Long-term narrative summary
+  conversationHistory: ChatMessage[]; // Last N messages for context
   lastInteraction: number;
 }
 
@@ -122,8 +113,7 @@ export interface AIMemory {
 export interface Artifact {
   id: string;
   title: string;
-  type: 'html' | 'image';
-  content: string; 
+  code: string; // HTML/JS content
   isVisible: boolean;
 }
 
@@ -167,7 +157,7 @@ export interface ReceiptData {
 
 export interface HistoryModalData {
   title: string;
-  filterTerm: string;
+  filterTerm: string; // term to search in notes to find related transactions
 }
 
 export interface BatchTransaction {
@@ -177,36 +167,4 @@ export interface BatchTransaction {
     category: string;
 }
 
-export interface Rank {
-    title: string;
-    minNetWorth: number;
-    icon: string;
-}
-
-export interface AuthUser {
-  id: string; // email
-  name: string;
-  passwordHash?: string;
-  provider: 'local' | 'google';
-  createdAt: number;
-}
-
-export interface SignUpData {
-    name: string;
-    email: string;
-    password?: string;
-}
-
 export type AIState = 'idle' | 'listening' | 'thinking' | 'speaking';
-
-export enum View {
-  DASHBOARD = 'DASHBOARD',
-  ACCOUNTS = 'ACCOUNTS',
-  EXPENSES = 'EXPENSES',
-  INCOME = 'INCOME',
-  DEBTS = 'DEBTS',
-  SAVINGS = 'SAVINGS',
-  CALENDAR = 'CALENDAR',
-  ROADMAP = 'ROADMAP',
-  RESOURCES = 'RESOURCES'
-}

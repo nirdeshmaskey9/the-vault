@@ -1,5 +1,5 @@
 
-import { Account, Expense, Income, Debt, SavingsGoal, UserStats, AIInsight, UserProfile } from '../types';
+import { Account, Expense, Income, Debt, SavingsGoal, UserStats, AIInsight } from '../types';
 
 // We use a prefix, but real dynamic keys will be passed in
 const STORAGE_PREFIX = 'THE_VAULT_DATA_';
@@ -12,7 +12,6 @@ export interface AppState {
   savings: SavingsGoal[];
   stats: UserStats;
   insights: AIInsight[];
-  profile: UserProfile | null;
 }
 
 export const saveState = (state: AppState, userId: string = 'guest') => {

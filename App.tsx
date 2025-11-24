@@ -1,19 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { generateMockData, getInitialInsights } from './services/mockService';
-import { Account, Expense, Income, Debt, SavingsGoal, UserStats, AIInsight, ModalType, UserProfile, ReceiptData, PaymentFormData, HistoryModalData, TransferFormData, AccountType, BatchTransaction } from './types';
+import { Account, Expense, Income, Debt, SavingsGoal, UserStats, AIInsight, ModalType, UserProfile, ReceiptData, PaymentFormData, HistoryModalData, TransferFormData, AccountType } from './types';
 import { Dashboard } from './components/Dashboard';
 import { AccountsView, DebtsView, SavingsView, IncomeView, ExpensesView, HistoryModal } from './components/Views';
-import { CalendarView } from './components/CalendarView';
 import { AIChat } from './components/AIChat';
 import { Card, Button, Toast, Modal, Input, Select } from './components/UIComponents';
-import { AddAccountForm, AddTransactionForm, AddGoalForm, AddDebtForm, PaymentForm, EditAccountForm, TransferForm, EditProfileForm } from './components/Forms';
+import { AddAccountForm, AddTransactionForm, AddGoalForm, AddDebtForm, PaymentForm, EditAccountForm, TransferForm } from './components/Forms';
 import { saveState, loadState } from './services/persistence';
 import { LandingPage } from './components/LandingPage';
 import { logAction } from './services/watchdogService';
 import { addFact } from './services/memoryService';
-import { auth } from './services/firebaseConfig';
-import { onAuthStateChanged } from 'firebase/auth';
 
 enum View {
   DASHBOARD = 'DASHBOARD',
@@ -21,8 +18,7 @@ enum View {
   EXPENSES = 'EXPENSES',
   INCOME = 'INCOME',
   DEBTS = 'DEBTS',
-  SAVINGS = 'SAVINGS',
-  CALENDAR = 'CALENDAR'
+  SAVINGS = 'SAVINGS'
 }
 
 const App: React.FC = () => {
@@ -49,29 +45,19 @@ const App: React.FC = () => {
   const [activeItemId, setActiveItemId] = useState<number | null>(null);
   const [historyData, setHistoryData] = useState<HistoryModalData | null>(null);
 
-  // AUTH LISTENER for Real Firebase
+  // Load Data
   useEffect(() => {
-    try {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        if (user) {
-          handleLogin(user.uid, user.displayName || user.email?.split('@')[0]);
-        } else {
-            // Only force logout if we are relying purely on firebase
-            // If running local simulation, we manage state manually
-        }
-      });
-      return () => unsubscribe();
-    } catch (e) { console.warn("Firebase Auth Listener Error", e); }
+    // Check if previously logged in (optional, for now strictly require login)
   }, []);
 
   // Save State on Change
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      saveState({ accounts, expenses, income, debts, savings, stats, insights, profile }, currentUserId);
+      saveState({ accounts, expenses, income, debts, savings, stats, insights }, currentUserId);
     }
-  }, [accounts, expenses, income, debts, savings, stats, insights, loading, isAuthenticated, currentUserId, profile]);
+  }, [accounts, expenses, income, debts, savings, stats, insights, loading, isAuthenticated, currentUserId]);
 
-  const handleLogin = (userId: string, userName?: string) => {
+  const handleLogin = (userId: string) => {
       setCurrentUserId(userId);
       setIsAuthenticated(true);
       
@@ -84,17 +70,9 @@ const App: React.FC = () => {
         setSavings(saved.savings);
         setStats(saved.stats);
         setInsights(saved.insights);
-        setProfile(saved.profile || { 
-            name: userName || userId, 
-            currency: 'USD', 
-            financialGoal: 'Financial Freedom', 
-            riskTolerance: 'medium',
-            occupation: 'Not Set',
-            monthlyIncome: 0,
-            voiceName: 'Kore'
-        });
+        setProfile({ name: userId, currency: 'USD', financialGoal: 'Financial Freedom', riskTolerance: 'medium' });
       } else {
-        // START FRESH
+        // START FRESH - NO MOCK DATA
         setAccounts([]);
         setExpenses([]);
         setIncome([]);
@@ -102,19 +80,11 @@ const App: React.FC = () => {
         setSavings([]);
         setStats({ level: 1, xp: 0, nextLevelXp: 100, title: 'Novice', streakDays: 0 });
         setInsights([]);
-        setProfile({ 
-            name: userName || userId, 
-            currency: 'USD', 
-            financialGoal: 'Financial Freedom', 
-            riskTolerance: 'medium',
-            occupation: 'Not Set',
-            monthlyIncome: 0,
-            voiceName: 'Kore'
-        });
+        setProfile({ name: userId, currency: 'USD', financialGoal: 'Financial Freedom', riskTolerance: 'medium' });
       }
       setLoading(false);
   };
-  
+
   const addXP = (amount: number, reason: string) => {
     setStats(prev => {
       const newXp = prev.xp + amount;
@@ -147,10 +117,7 @@ const App: React.FC = () => {
         accountId: data.accountId,
         notes: data.notes,
         createdAt: new Date().toISOString(),
-        metaOrigin: scannedReceipt ? 'receipt_scan' : 'manual',
-        isRecurring: data.isRecurring,
-        frequency: data.frequency,
-        nextDueDate: data.nextDueDate
+        metaOrigin: scannedReceipt ? 'receipt_scan' : 'manual'
       };
       setExpenses(prev => [...prev, newExpense]);
       setAccounts(prev => prev.map(a => a.id === data.accountId ? { ...a, balanceCents: a.balanceCents - data.amountCents } : a));
@@ -162,10 +129,7 @@ const App: React.FC = () => {
         amountCents: data.amountCents,
         source: data.source || 'Manual Entry',
         accountId: data.accountId,
-        notes: data.notes,
-        isRecurring: data.isRecurring,
-        frequency: data.frequency,
-        nextDueDate: data.nextDueDate
+        notes: data.notes
       };
       setIncome(prev => [...prev, newIncome]);
       setAccounts(prev => prev.map(a => a.id === data.accountId ? { ...a, balanceCents: a.balanceCents + data.amountCents } : a));
@@ -265,30 +229,35 @@ const App: React.FC = () => {
   const handleProfileUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
-    setProfile(prev => ({
-        ...prev!,
+    setProfile({
         name: formData.get('name') as string,
-        occupation: formData.get('occupation') as string,
-        monthlyIncome: Number(formData.get('income')) || 0,
         currency: 'USD',
         financialGoal: formData.get('goal') as string,
-        riskTolerance: formData.get('risk') as any,
-        voiceName: formData.get('voice') as string
-    }));
+        riskTolerance: formData.get('risk') as any
+    });
     handleModalClose();
     setToast({ message: "Profile Updated", type: "success" });
   };
 
   // --- AI ACTION HANDLER ---
   const handleAIAction = async (action: string, params: any) => {
-    console.log("AI Action", action, params);
+    console.log("AI Action Triggered:", action, params);
     logAction('EDIT', `AI Triggered: ${action}`, params);
     
+    // MEMORY
+    if (action === 'rememberFact') {
+        addFact(currentUserId, params.fact);
+        setToast({ message: "Memory Updated", type: 'success' });
+        return { success: true, message: "I have saved that to my memory." };
+    }
+
+    // READ
     if (action === 'getAccounts') return accounts;
     if (action === 'getRecentTransactions') return [...expenses, ...income].slice(0, 15);
     if (action === 'getDebts') return debts;
     if (action === 'getSavingsGoals') return savings;
-
+    
+    // --- WRITE ---
     if (action === 'addAccount') {
         const newAccount: Account = {
             id: Date.now(),
@@ -299,19 +268,42 @@ const App: React.FC = () => {
             notes: 'AI Generated'
         };
         setAccounts(prev => [...prev, newAccount]);
-        addXP(50, "Account Created via AI");
+        addXP(50, "Account Created");
+        setToast({ message: `Account '${params.name}' created`, type: 'success' });
         return { success: true, message: `Account ${newAccount.name} created successfully.` };
     }
-    
-    // ... Additional AI action handlers for edit/delete/etc would be here ...
-    // To save XML space, relying on previous full implementation logic
-    // The key update here is the handleLogin passing to LandingPage below
+
+    if (action === 'editAccount') {
+        const targetName = params.currentName.toLowerCase();
+        const account = accounts.find(a => a.name.toLowerCase().includes(targetName));
+        if (account) {
+            handleEditAccount({ 
+                ...account, 
+                name: params.newName || account.name, 
+                balanceCents: params.newBalance ? Math.round(params.newBalance * 100) : account.balanceCents, 
+                notes: params.newNotes || account.notes 
+            });
+            return { success: true, message: `Account updated.` };
+        }
+        return { success: false, message: `Account not found.` };
+    }
+
+    if (action === 'deleteAccount') {
+        const targetName = params.name.toLowerCase();
+        const account = accounts.find(a => a.name.toLowerCase().includes(targetName));
+        if (account) {
+            setAccounts(prev => prev.filter(a => a.id !== account.id));
+            setToast({ message: `Account '${account.name}' deleted`, type: 'info' });
+            return { success: true, message: `Account ${account.name} deleted.` };
+        }
+        return { success: false, message: `Account not found.` };
+    }
 
     if (action === 'addTransaction') {
       const account = accounts.find(a => a.name.toLowerCase().includes((params.accountName || '').toLowerCase())) || accounts[0];
       const amountCents = Math.round(params.amount * 100);
       
-      if (!account) return { success: false, message: "Account not found." };
+      if (!account) return { success: false, message: "Account not found or no accounts exist." };
 
       if (params.type === 'EXPENSE') {
         handleCreateTransaction({ type: 'EXPENSE', amountCents, categoryId: 1, accountId: account.id, notes: params.notes || 'AI Generated', date: new Date().toISOString().split('T')[0] });
@@ -321,18 +313,180 @@ const App: React.FC = () => {
       return { success: true, message: "Transaction added." };
     }
 
+    if (action === 'editTransaction') {
+        const term = params.searchTerm.toLowerCase();
+        const expIndex = expenses.findIndex(e => e.notes.toLowerCase().includes(term));
+        if (expIndex !== -1) {
+            const oldExp = expenses[expIndex];
+            const newExp = { ...oldExp };
+            if (params.newAmount) {
+                const diff = Math.round(params.newAmount * 100) - oldExp.amountCents;
+                newExp.amountCents = Math.round(params.newAmount * 100);
+                setAccounts(prev => prev.map(a => a.id === oldExp.accountId ? { ...a, balanceCents: a.balanceCents - diff } : a));
+            }
+            if (params.newNotes) newExp.notes = params.newNotes;
+            if (params.newDate) newExp.date = params.newDate;
+            const updated = [...expenses];
+            updated[expIndex] = newExp;
+            setExpenses(updated);
+            setToast({ message: "Transaction Updated", type: 'success' });
+            return { success: true, message: "Expense updated." };
+        }
+        return { success: false, message: "Transaction not found." };
+    }
+
+    if (action === 'deleteTransaction') {
+        const term = params.searchTerm.toLowerCase();
+        const expIndex = expenses.findIndex(e => e.notes.toLowerCase().includes(term));
+        if (expIndex !== -1) {
+            const exp = expenses[expIndex];
+            setAccounts(prev => prev.map(a => a.id === exp.accountId ? { ...a, balanceCents: a.balanceCents + exp.amountCents } : a));
+            setExpenses(prev => prev.filter((_, i) => i !== expIndex));
+            setToast({ message: "Transaction Deleted", type: 'info' });
+            return { success: true, message: "Transaction deleted and balance restored." };
+        }
+        return { success: false, message: "Transaction not found." };
+    }
+
+    if (action === 'transferFunds') {
+        const fromAccount = accounts.find(a => a.name.toLowerCase().includes(params.fromAccountName.toLowerCase()));
+        const toAccount = accounts.find(a => a.name.toLowerCase().includes(params.toAccountName.toLowerCase()));
+        if (fromAccount && toAccount) {
+            handleTransferFunds({ fromAccountId: fromAccount.id, toAccountId: toAccount.id, amountCents: Math.round(params.amount * 100) });
+            return { success: true, message: "Transfer completed." };
+        }
+        return { success: false, message: "One or both accounts not found." };
+    }
+
+    if (action === 'addDebt') {
+        const newDebt: Debt = {
+            id: Date.now(),
+            name: params.name,
+            totalAmountCents: Math.round(params.totalAmount * 100),
+            remainingBalanceCents: Math.round(params.totalAmount * 100),
+            dueDate: params.dueDate
+        };
+        setDebts(prev => [...prev, newDebt]);
+        setToast({ message: `Debt '${params.name}' Added`, type: 'success' });
+        return { success: true, message: `Debt ${newDebt.name} added.` };
+    }
+
+    if (action === 'updateDebt') {
+        const debt = debts.find(d => d.name.toLowerCase().includes(params.debtName.toLowerCase()));
+        if (debt) {
+            setDebts(prev => prev.map(d => d.id === debt.id ? {
+                ...d,
+                name: params.newName || d.name,
+                totalAmountCents: params.newTotal ? Math.round(params.newTotal * 100) : d.totalAmountCents
+            } : d));
+            setToast({ message: "Debt Updated", type: 'success' });
+            return { success: true, message: "Debt details updated." };
+        }
+        return { success: false, message: "Debt not found." };
+    }
+
+    if (action === 'deleteDebt') {
+        const debt = debts.find(d => d.name.toLowerCase().includes(params.name.toLowerCase()));
+        if (debt) {
+            setDebts(prev => prev.filter(d => d.id !== debt.id));
+            setToast({ message: "Debt Deleted", type: 'info' });
+            return { success: true, message: "Debt record deleted." };
+        }
+        return { success: false, message: "Debt not found." };
+    }
+
+    if (action === 'addSavingsGoal') {
+        const newGoal: SavingsGoal = {
+            id: Date.now(),
+            name: params.name,
+            goalCents: Math.round(params.targetAmount * 100),
+            currentCents: 0,
+            targetDate: params.targetDate,
+            active: true
+        };
+        setSavings(prev => [...prev, newGoal]);
+        setToast({ message: `Goal '${params.name}' Added`, type: 'success' });
+        return { success: true, message: `Goal ${newGoal.name} created.` };
+    }
+
+    if (action === 'updateSavingsGoal') {
+        const goal = savings.find(s => s.name.toLowerCase().includes(params.currentName.toLowerCase()));
+        if (goal) {
+            setSavings(prev => prev.map(s => s.id === goal.id ? {
+                ...s,
+                name: params.newName || s.name,
+                goalCents: params.newTarget ? Math.round(params.newTarget * 100) : s.goalCents
+            } : s));
+            setToast({ message: "Goal Updated", type: 'success' });
+            return { success: true, message: "Goal updated." };
+        }
+        return { success: false, message: "Goal not found." };
+    }
+
+    if (action === 'deleteSavingsGoal') {
+        const goal = savings.find(s => s.name.toLowerCase().includes(params.name.toLowerCase()));
+        if (goal) {
+            setSavings(prev => prev.filter(s => s.id !== goal.id));
+            setToast({ message: "Goal Deleted", type: 'info' });
+            return { success: true, message: "Goal deleted." };
+        }
+        return { success: false, message: "Goal not found." };
+    }
+
+    if (action === 'payDebt') {
+        const debt = debts.find(d => d.name.toLowerCase().includes(params.debtName.toLowerCase()));
+        const account = accounts.find(a => a.name.toLowerCase().includes(params.fromAccountName.toLowerCase()));
+        if (debt && account) {
+            handlePayment({ 
+                targetId: debt.id, 
+                targetName: debt.name, 
+                type: 'DEBT', 
+                amountCents: Math.round(params.amount * 100), 
+                accountId: account.id 
+            });
+            return { success: true, message: "Payment processed." };
+        }
+        return { success: false, message: "Debt or Account not found." };
+    }
+
+    if (action === 'contributeToSavings') {
+        const goal = savings.find(s => s.name.toLowerCase().includes(params.goalName.toLowerCase()));
+        const account = accounts.find(a => a.name.toLowerCase().includes(params.fromAccountName.toLowerCase()));
+        if (goal && account) {
+             handlePayment({ 
+                targetId: goal.id, 
+                targetName: goal.name, 
+                type: 'SAVINGS', 
+                amountCents: Math.round(params.amount * 100), 
+                accountId: account.id 
+            });
+            return { success: true, message: "Contribution processed." };
+        }
+        return { success: false, message: "Goal or Account not found." };
+    }
+
+    if (action === 'updateProfile') {
+        setProfile(prev => ({
+            ...prev!,
+            name: params.name || prev?.name || 'Hunter',
+            financialGoal: params.financialGoal || prev?.financialGoal || 'Freedom',
+            riskTolerance: params.riskTolerance || prev?.riskTolerance || 'medium'
+        }));
+        setToast({ message: "Profile Updated", type: 'success' });
+        return { success: true, message: "Profile updated." };
+    }
+
     return { success: true, message: "Action Processed" };
   };
 
   if (!isAuthenticated) {
-      // Pass handleLogin to ensure simulated auth works by calling it directly
       return <LandingPage onLogin={handleLogin} />;
   }
 
   const renderContent = () => {
     switch (currentView) {
       case View.DASHBOARD:
-        return <Dashboard accounts={accounts} expenses={expenses} income={income} stats={stats} insights={insights} onOpenModal={setModalType} profile={profile} />;
+        return <Dashboard accounts={accounts} expenses={expenses} income={income} stats={stats} insights={insights} onOpenModal={setModalType} />;
       case View.ACCOUNTS:
         return <AccountsView accounts={accounts} expenses={expenses} onOpenModal={(type, id) => { setActiveItemId(id || null); setModalType(type); }} />;
       case View.INCOME:
@@ -343,14 +497,12 @@ const App: React.FC = () => {
         return <SavingsView savings={savings} onOpenModal={(type) => setModalType(type)} onAddContribution={(id) => { setActiveItemId(id); setModalType(ModalType.PAYMENT); }} />;
       case View.EXPENSES:
         return <ExpensesView expenses={expenses} onOpenModal={setModalType} />;
-      case View.CALENDAR:
-        return <CalendarView expenses={expenses} income={income} />;
       default: return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-transparent flex font-sans selection:bg-rose-500/30 overflow-hidden text-gray-200">
+    <div className="min-h-screen bg-transparent flex font-sans selection:bg-violet-500/30 overflow-hidden text-gray-200">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <Modal isOpen={modalType === ModalType.ADD_ACCOUNT} onClose={handleModalClose} title="Add Account">
@@ -411,9 +563,16 @@ const App: React.FC = () => {
       </Modal>
 
       <Modal isOpen={modalType === ModalType.PROFILE || modalType === ModalType.SETTINGS} onClose={handleModalClose} title="User Profile">
-         <EditProfileForm profile={profile} onSubmit={handleProfileUpdate} onClose={handleModalClose} />
+         <form onSubmit={handleProfileUpdate} className="space-y-4">
+            <Input name="name" label="Your Name" defaultValue={profile?.name || 'Hunter'} />
+            <Input name="goal" label="Financial Goal" defaultValue={profile?.financialGoal || 'Financial Freedom'} />
+            <Select name="risk" label="Risk Tolerance" options={[{value:'low', label:'Low'}, {value:'medium', label:'Medium'}, {value:'high', label:'High'}]} />
+            <Button type="submit" className="w-full">Save Profile</Button>
+            <Button variant="danger" className="w-full mt-2" onClick={() => { localStorage.clear(); window.location.reload(); }}>Log Out / Reset All</Button>
+         </form>
       </Modal>
 
+      {/* Sidebar (Desktop) */}
       <aside className="w-64 fixed inset-y-0 left-0 z-40 bg-black/40 backdrop-blur-xl border-r border-white/10 hidden md:flex flex-col">
          <div className="p-6">
             <h1 className="text-2xl font-bold neon-text text-white">THE VAULT</h1>
@@ -421,7 +580,6 @@ const App: React.FC = () => {
          <nav className="flex-1 px-4 space-y-2">
             {[
                 { view: View.DASHBOARD, label: "Dashboard" },
-                { view: View.CALENDAR, label: "Calendar" },
                 { view: View.ACCOUNTS, label: "Accounts" },
                 { view: View.INCOME, label: "Income" },
                 { view: View.EXPENSES, label: "Expenses" },
@@ -431,7 +589,7 @@ const App: React.FC = () => {
                 <button 
                   key={item.view}
                   onClick={() => setCurrentView(item.view)}
-                  className={`w-full text-left px-4 py-3 rounded-xl transition-all ${currentView === item.view ? 'bg-rose-600/20 text-white border border-rose-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                  className={`w-full text-left px-4 py-3 rounded-xl transition-all ${currentView === item.view ? 'bg-violet-600/20 text-white border border-violet-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
                   {item.label}
                 </button>
@@ -439,17 +597,18 @@ const App: React.FC = () => {
          </nav>
       </aside>
 
+      {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-slate-900/90 backdrop-blur-lg border-t border-white/10 flex justify-around p-3 safe-area-bottom">
         {[
             { view: View.DASHBOARD, icon: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" },
-            { view: View.CALENDAR, icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+            { view: View.ACCOUNTS, icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" },
             { view: View.EXPENSES, icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
             { view: View.DEBTS, icon: "M13 10V3L4 14h7v7l9-11h-7z" },
         ].map(item => (
             <button 
                 key={item.view}
                 onClick={() => setCurrentView(item.view)}
-                className={`p-2 rounded-xl transition-colors ${currentView === item.view ? 'text-rose-400 bg-white/5' : 'text-gray-400'}`}
+                className={`p-2 rounded-xl transition-colors ${currentView === item.view ? 'text-violet-400 bg-white/5' : 'text-gray-400'}`}
             >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
             </button>
