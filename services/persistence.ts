@@ -1,7 +1,8 @@
 
-import { Account, Expense, Income, Debt, SavingsGoal, UserStats, AIInsight } from '../types';
+import { Account, Expense, Income, Debt, SavingsGoal, UserStats, AIInsight, UserProfile } from '../types';
 
-const STORAGE_KEY = 'THE_VAULT_DATA_V1';
+// We use a prefix, but real dynamic keys will be passed in
+const STORAGE_PREFIX = 'THE_VAULT_DATA_';
 
 export interface AppState {
   accounts: Account[];
@@ -11,20 +12,23 @@ export interface AppState {
   savings: SavingsGoal[];
   stats: UserStats;
   insights: AIInsight[];
+  profile: UserProfile | null;
 }
 
-export const saveState = (state: AppState) => {
+export const saveState = (state: AppState, userId: string = 'guest') => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    console.log("Vault State Saved");
+    const key = `${STORAGE_PREFIX}${userId}`;
+    localStorage.setItem(key, JSON.stringify(state));
+    console.log(`Vault State Saved for user: ${userId}`);
   } catch (e) {
     console.error("Failed to save state", e);
   }
 };
 
-export const loadState = (): AppState | null => {
+export const loadState = (userId: string = 'guest'): AppState | null => {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
+    const key = `${STORAGE_PREFIX}${userId}`;
+    const data = localStorage.getItem(key);
     if (data) {
       return JSON.parse(data);
     }
@@ -34,7 +38,8 @@ export const loadState = (): AppState | null => {
   return null;
 };
 
-export const clearState = () => {
-  localStorage.removeItem(STORAGE_KEY);
+export const clearState = (userId: string = 'guest') => {
+  const key = `${STORAGE_PREFIX}${userId}`;
+  localStorage.removeItem(key);
   window.location.reload();
 };

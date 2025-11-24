@@ -1,112 +1,126 @@
 
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { AIState } from '../types';
 
 interface ThreeSceneProps {
   aiState: AIState;
-  focusMode: boolean; // If true, avatar moves to front and center
+  focusMode: boolean;
 }
 
-const CoreAvatar: React.FC<{ aiState: AIState; focusMode: boolean }> = ({ aiState, focusMode }) => {
+const ElegantMorphingAvatar: React.FC<{ aiState: AIState; focusMode: boolean }> = ({ aiState, focusMode }) => {
   const meshRef = useRef<THREE.Mesh>(null);
+  const geometryRef = useRef<THREE.IcosahedronGeometry>(null);
   
-  // Dynamic color based on state
+  // Warm, Elegant Color Palette
   const color = useMemo(() => {
     switch (aiState) {
-      case 'listening': return new THREE.Color('#ef4444'); // Red
-      case 'thinking': return new THREE.Color('#06b6d4'); // Cyan
-      case 'speaking': return new THREE.Color('#10b981'); // Green
-      default: return new THREE.Color('#8b5cf6'); // Violet
+      case 'listening': return new THREE.Color('#db2777'); // Pink-600
+      case 'thinking': return new THREE.Color('#9333ea'); // Purple-600
+      case 'speaking': return new THREE.Color('#f59e0b'); // Amber-500
+      default: return new THREE.Color('#be185d'); // Pink-700 (Idle)
     }
   }, [aiState]);
 
+  // Initial random noise for vertex displacement
+  const noise = useMemo(() => {
+    return new Float32Array(200).map(() => Math.random());
+  }, []);
+
   useFrame((state) => {
-    if (meshRef.current) {
+    if (meshRef.current && geometryRef.current) {
       const time = state.clock.getElapsedTime();
       
-      // Position Interpolation
-      // Standard: 0,0,0
-      // Focus Mode: Closer to camera (z=4) and slightly centered (y=-0.5)
-      const targetPos = focusMode ? new THREE.Vector3(0, 0, 4) : new THREE.Vector3(0, 0, 0);
-      meshRef.current.position.lerp(targetPos, 0.05);
-
-      // Pulse size based on state - SCALED DOWN 65% from original 1.5
-      // Original Base: 1.5. New Target: ~0.55
-      let baseScale = focusMode ? 0.6 : 0.4; 
-      let scale = baseScale;
+      // Gentle floating
+      const targetZ = focusMode ? 3.5 : 0;
+      meshRef.current.position.z = THREE.MathUtils.lerp(meshRef.current.position.z, targetZ, 0.05);
+      
+      // Animation Parameters based on State
+      let speed = 0.5;
+      let amplitude = 0.1;
       
       if (aiState === 'speaking') {
-         scale = baseScale + Math.sin(time * 10) * 0.1;
+          speed = 2.5;
+          amplitude = 0.3;
       } else if (aiState === 'thinking') {
-         scale = baseScale + Math.sin(time * 5) * 0.05;
-      } else {
-         scale = baseScale + Math.sin(time) * 0.02;
+          speed = 3.0;
+          amplitude = 0.15;
+      } else if (aiState === 'listening') {
+          speed = 1.0;
+          amplitude = 0.2;
       }
-      meshRef.current.scale.set(scale, scale, scale);
+
+      // Smooth Rotation
+      meshRef.current.rotation.y += 0.002 * speed;
+      meshRef.current.rotation.z += 0.001 * speed;
+
+      // Color Transition
+      if(meshRef.current.material instanceof THREE.MeshStandardMaterial) {
+         meshRef.current.material.color.lerp(color, 0.05);
+         meshRef.current.material.emissive.lerp(color, 0.05);
+      }
       
-      // Rotate
-      meshRef.current.rotation.x = time * 0.2;
-      meshRef.current.rotation.y = time * 0.3;
-      
-      // Update Material Color
-      const material = meshRef.current.material as THREE.MeshStandardMaterial;
-      material.color.lerp(color, 0.1);
-      material.emissive.lerp(color, 0.1);
+      // Scale Pulse (Subtle breathing)
+      const scale = 1 + Math.sin(time * speed) * (amplitude * 0.5);
+      meshRef.current.scale.setScalar(scale);
     }
   });
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[0.6, 64, 64]} /> {/* Radius scaled down */}
-      <meshStandardMaterial
-        color={color}
-        roughness={0.4}
-        metalness={0.7}
+      <icosahedronGeometry ref={geometryRef} args={[1.2, 4]} />{/* High poly for smooth look */}
+      <meshStandardMaterial 
+        color={color} 
         emissive={color}
-        emissiveIntensity={0.5}
+        emissiveIntensity={0.6}
+        roughness={0.1} 
+        metalness={0.2}
+        wireframe={true} // Elegant wireframe overlay
+        transparent
+        opacity={0.8}
       />
+      {/* Inner Glow Core */}
+      <mesh scale={[0.8, 0.8, 0.8]}>
+        <sphereGeometry args={[1, 32, 32]} />
+        <meshBasicMaterial color="#fbbf24" transparent opacity={0.3} />
+      </mesh>
     </mesh>
   );
 };
 
-const BackgroundParticles: React.FC<{ focusMode: boolean }> = ({ focusMode }) => {
+const WarmParticles: React.FC<{ aiState: AIState }> = ({ aiState }) => {
   const pointsRef = useRef<THREE.Points>(null);
   
   const particles = useMemo(() => {
-    const count = 2000;
+    const count = 800;
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 50;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 50;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 50; // Depth
+      const r = 10 + Math.random() * 20;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
     }
     return positions;
   }, []);
 
-  useFrame((state) => {
+  useFrame(() => {
     if (pointsRef.current) {
-      pointsRef.current.rotation.y += 0.001;
-      pointsRef.current.rotation.x += 0.0005;
-      // Fade out effect if focused?
-      const material = pointsRef.current.material as THREE.PointsMaterial;
-      material.opacity = focusMode ? 0.3 : 0.8;
-      material.transparent = true;
+      let speed = 0.0005;
+      if (aiState !== 'idle') speed = 0.002;
+      pointsRef.current.rotation.y += speed;
     }
   });
 
   return (
     <points ref={pointsRef}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={particles.length / 3}
-          array={particles}
-          itemSize={3}
-        />
+        <bufferAttribute attach="attributes-position" count={particles.length / 3} array={particles} itemSize={3} />
       </bufferGeometry>
-      <pointsMaterial size={0.1} color="#ffffff" sizeAttenuation />
+      <pointsMaterial size={0.1} color="#fcd34d" sizeAttenuation transparent opacity={0.4} />
     </points>
   );
 };
@@ -114,13 +128,12 @@ const BackgroundParticles: React.FC<{ focusMode: boolean }> = ({ focusMode }) =>
 export const ThreeScene: React.FC<ThreeSceneProps> = ({ aiState, focusMode }) => {
   return (
     <div id="canvas-container" className="transition-opacity duration-1000">
-      <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ antialias: true }}>
-        <ambientLight intensity={0.5} />
-        <pointLight position={[10, 10, 10]} intensity={1} />
-        <pointLight position={[-10, -10, -10]} intensity={0.5} color="#4c1d95" />
-        
-        <CoreAvatar aiState={aiState} focusMode={focusMode} />
-        <BackgroundParticles focusMode={focusMode} />
+      <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ antialias: true, alpha: true }}>
+        <ambientLight intensity={0.4} />
+        <pointLight position={[10, 10, 10]} intensity={1} color="#f472b6" />
+        <pointLight position={[-10, -10, -10]} intensity={0.5} color="#fbbf24" />
+        <ElegantMorphingAvatar aiState={aiState} focusMode={focusMode} />
+        <WarmParticles aiState={aiState} />
       </Canvas>
     </div>
   );

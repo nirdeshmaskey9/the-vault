@@ -7,19 +7,15 @@ export enum AccountType {
   OTHER = 'OTHER'
 }
 
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-}
-
 export interface UserProfile {
   name: string;
   email?: string;
   currency: string;
   financialGoal: string;
   riskTolerance: 'low' | 'medium' | 'high';
+  occupation?: string;
+  monthlyIncome?: number;
+  voiceName?: string; // Persistent voice setting
 }
 
 export interface Account {
@@ -45,7 +41,10 @@ export interface Expense {
   accountId: number;
   notes: string;
   createdAt: string;
-  metaOrigin: 'manual' | 'recurring' | 'ai_generated' | 'receipt_scan';
+  metaOrigin: 'manual' | 'recurring' | 'ai_generated' | 'receipt_scan' | 'transfer';
+  isRecurring?: boolean;
+  frequency?: 'monthly' | 'weekly' | 'yearly';
+  nextDueDate?: string;
   receiptImage?: string; // base64
 }
 
@@ -56,6 +55,9 @@ export interface Income {
   source: string;
   accountId: number;
   notes: string;
+  isRecurring?: boolean;
+  frequency?: 'monthly' | 'weekly' | 'yearly';
+  nextDueDate?: string;
 }
 
 export interface Debt {
@@ -109,9 +111,10 @@ export interface ChatMessage {
 }
 
 export interface AIMemory {
-  userName: string;
+  userId: string;
   facts: string[];
-  preferences: Record<string, string>;
+  summary: string;
+  conversationHistory: ChatMessage[];
   lastInteraction: number;
 }
 
@@ -120,7 +123,7 @@ export interface Artifact {
   id: string;
   title: string;
   type: 'html' | 'image';
-  content: string; // HTML/JS content or Base64 Image
+  content: string; 
   isVisible: boolean;
 }
 
@@ -128,6 +131,7 @@ export interface Artifact {
 export enum ModalType {
   NONE = 'NONE',
   ADD_ACCOUNT = 'ADD_ACCOUNT',
+  EDIT_ACCOUNT = 'EDIT_ACCOUNT',
   ADD_EXPENSE = 'ADD_EXPENSE',
   ADD_INCOME = 'ADD_INCOME',
   ADD_DEBT = 'ADD_DEBT',
@@ -136,7 +140,22 @@ export enum ModalType {
   PROFILE = 'PROFILE',
   RECEIPT_PREVIEW = 'RECEIPT_PREVIEW',
   PAYMENT = 'PAYMENT',
-  CONNECT_BANK = 'CONNECT_BANK'
+  HISTORY = 'HISTORY',
+  TRANSFER = 'TRANSFER'
+}
+
+export interface PaymentFormData {
+  targetId: number;
+  targetName: string;
+  type: 'DEBT' | 'SAVINGS';
+  amountCents: number;
+  accountId: number;
+}
+
+export interface TransferFormData {
+  fromAccountId: number;
+  toAccountId: number;
+  amountCents: number;
 }
 
 export interface ReceiptData {
@@ -146,26 +165,40 @@ export interface ReceiptData {
   category: string;
 }
 
+export interface HistoryModalData {
+  title: string;
+  filterTerm: string;
+}
+
+export interface BatchTransaction {
+    date: string;
+    amount: number;
+    merchant: string;
+    category: string;
+}
+
+export interface Rank {
+    title: string;
+    minNetWorth: number;
+    icon: string;
+}
+
+export interface AuthUser {
+  id: string; // email
+  name: string;
+  passwordHash?: string;
+  provider: 'local' | 'google';
+  createdAt: number;
+}
+
+export interface SignUpData {
+    name: string;
+    email: string;
+    password?: string;
+}
+
 export type AIState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
-export interface NewTransactionForm {
-  amount: string;
-  category: string;
-  account: string;
-  date: string;
-  notes: string;
-  type: 'EXPENSE' | 'INCOME';
-}
-
-export interface PaymentFormData {
-  targetId: number; // Debt ID or Savings ID
-  targetName: string;
-  amountCents: number;
-  fromAccountId: number;
-  type: 'DEBT_PAYMENT' | 'SAVINGS_CONTRIBUTION';
-}
-
-// Views
 export enum View {
   DASHBOARD = 'DASHBOARD',
   ACCOUNTS = 'ACCOUNTS',
@@ -176,11 +209,4 @@ export enum View {
   CALENDAR = 'CALENDAR',
   ROADMAP = 'ROADMAP',
   RESOURCES = 'RESOURCES'
-}
-
-export interface FinancialRank {
-  title: string;
-  minNetWorth: number;
-  perks: string;
-  icon: string;
 }
